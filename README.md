@@ -75,24 +75,22 @@ Lưu ý: đề cấm đổi mã, ngày mượn, ngày hẹn trả và loại tà
 - id : String
 - title : String
 
-+ Publication(id : String, title : String)       // kiểm tra id, title hợp lệ
++ Publication(id : String, title : String)       
 + getId() : String
 + getTitle() : String
-+ setTitle(title : String) : void                // kiểm tra không rỗng
-+ abstract getFinePerDay() : long                // đơn giá phạt, lớp con override
-+ abstract getType() : String                    // "BOOK" / "JOURNAL"
++ setTitle(title : String) : void               
++ abstract getFinePerDay() : long                
++ abstract getType() : String                   
 + toString() : String
-
-Không có setId, vì mã không đổi.
 
 2) Book extends Publication
 - author : String
 
-+ Book(id : String, title : String, author : String)   // gọi super(id, title)
++ Book(id : String, title : String, author : String)   
 + getAuthor() : String
-+ setAuthor(author : String) : void                    // kiểm tra không rỗng
-+ getFinePerDay() : long       // return 3000
-+ getType() : String           // return "BOOK"
++ setAuthor(author : String) : void                   
++ getFinePerDay() : long     
++ getType() : String           
 + toString() : String
 3) Journal extends Publication
 - issue : String       // số phát hành (có thể dùng int nếu nhóm thống nhất)
