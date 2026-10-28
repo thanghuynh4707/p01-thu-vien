@@ -1,4 +1,4 @@
-package librarymanagement;
+package library;
 
 import java.io.Serializable;
 import java.time.LocalDate;
