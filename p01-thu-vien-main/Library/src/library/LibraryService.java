@@ -1,240 +1,221 @@
-package library;
+package libraryproject;
 
+import java.io.Serializable;
 import java.time.LocalDate;
-import java.util.*;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
-/**
- * LibraryService quan ly toan bo logic nghiep vu cua thu vien:
- * - Quan ly Danh muc tai lieu (Sach, Tap chi)
- * - Quan ly Doc gia
- * - Quan ly Phieu muon - tra (Loan)
- * - Xu ly cac quy tac nghiep vu khat khe, kiem tra dieu kien truoc khi thay doi du lieu.
- */
-public class LibraryService {
-    // Luu tru tai lieu: Map<MaTaiLieu, DoiTuongTaiLieu>
+public class LibraryService implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+    private static final int MAX_ACTIVE_LOANS = 3;
+
     private Map<String, Publication> publications;
-    
-    // Luu tru doc gia: Map<MaDocGia, DoiTuongDocGia>
     private Map<String, Reader> readers;
-    
-    // Danh sach phieu muon
     private List<Loan> loans;
-    
-    // Bo dem ma phieu
     private long nextLoanNumber;
 
-    // Constructor khoi tao
     public LibraryService() {
-        this.publications = new HashMap<>();
-        this.readers = new HashMap<>();
-        this.loans = new ArrayList<>();
+        this.publications = new LinkedHashMap<String, Publication>();
+        this.readers = new LinkedHashMap<String, Reader>();
+        this.loans = new ArrayList<Loan>();
         this.nextLoanNumber = 1;
     }
 
-    // ==================== GETTERS & SETTERS ====================
-    
     public Collection<Publication> getPublications() {
-        return publications.values();
+        return Collections.unmodifiableCollection(this.publications.values());
     }
 
     public Collection<Reader> getReaders() {
-        return readers.values();
+        return Collections.unmodifiableCollection(this.readers.values());
     }
 
     public List<Loan> getLoans() {
-        return loans;
+        return Collections.unmodifiableList(this.loans);
     }
 
     public long getNextLoanNumber() {
-        return nextLoanNumber;
+        return this.nextLoanNumber;
     }
 
-    public void setNextLoanNumber(long nextLoanNumber) {
-        this.nextLoanNumber = nextLoanNumber;
-    }
-
-    // ==================== QUAN LY TAI LIEU (PUBLICATION) ====================
-
-    // Them tai lieu (Dung boolean de bao thanh cong/that bai thay vi nem Exception)
-    public boolean addPublication(Publication p) {
-        if (p == null || p.getId() == null || p.getId().isEmpty()) {
-            System.out.println("Thong tin tai lieu khong hop le!");
-            return false;
+    public void setNextLoanNumber(long n) {
+        if (n < 1) {
+            throw new IllegalArgumentException("Next loan number must be at least 1.");
         }
-        if (publications.containsKey(p.getId())) {
-            System.out.println("Ma tai lieu da ton tai!");
-            return false;
-        }
-        publications.put(p.getId(), p);
-        return true;
+        this.nextLoanNumber = n;
     }
 
-    // Tim tai lieu theo ID
+    public void addPublication(Publication p) {
+        if (p == null) {
+            throw new IllegalArgumentException("Publication must not be null.");
+        }
+        if (this.publications.containsKey(p.getId())) {
+            throw new IllegalArgumentException("Publication ID already exists: " + p.getId());
+        }
+        this.publications.put(p.getId(), p);
+    }
+
     public Publication findPublicationById(String id) {
-        if (id == null) return null;
-        return publications.get(id);
+        return this.publications.get(id);
     }
 
-    // Tim kiem gan dung theo ten
     public List<Publication> searchPublicationsByTitle(String keyword) {
-        List<Publication> result = new ArrayList<>();
-        if (keyword == null || keyword.isEmpty()) {
-            return result;
+        if (keyword == null || keyword.trim().isEmpty()) {
+            throw new IllegalArgumentException("Search keyword must not be empty.");
         }
-        for (Publication p : publications.values()) {
-            if (p.getTitle().toLowerCase().contains(keyword.toLowerCase())) {
+        String key = keyword.trim().toLowerCase();
+        List<Publication> result = new ArrayList<>();
+        for (Publication p : this.publications.values()) {
+            if (p.getTitle().toLowerCase().contains(key)) {
                 result.add(p);
             }
         }
         return result;
     }
 
-    // Cap nhat tai lieu (Bo instanceof phuc tap, chi sua tieu de cho don gian)
-    public boolean updatePublication(String id, String newTitle) {
-        Publication p = findPublicationById(id);
+    public void updatePublication(String id, String newTitle, String newAuthorOrIssue) {
+        Publication p = this.findPublicationById(id);
         if (p == null) {
-            System.out.println("Khong tim thay tai lieu!");
-            return false;
+            throw new IllegalArgumentException("Publication not found: " + id);
         }
-        if (newTitle == null || newTitle.isEmpty()) {
-            System.out.println("Tieu de khong duoc de trong!");
-            return false;
+
+        if (newTitle == null || newTitle.trim().isEmpty()
+                || newAuthorOrIssue == null || newAuthorOrIssue.trim().isEmpty()) {
+            throw new IllegalArgumentException("Title and author/issue must not be empty.");
         }
         p.setTitle(newTitle);
-        return true;
+        if (p instanceof Book) {
+            ((Book) p).setAuthor(newAuthorOrIssue);
+        } else if (p instanceof Journal) {
+            ((Journal) p).setIssue(newAuthorOrIssue);
+        }
     }
 
-    // Xoa tai lieu
-    public boolean deletePublication(String id) {
-        Publication p = findPublicationById(id);
-        if (p == null) {
-            System.out.println("Khong tim thay tai lieu!");
-            return false;
+    public void deletePublication(String id) {
+        if (this.findPublicationById(id) == null) {
+            throw new IllegalArgumentException("Publication not found: " + id);
         }
-        // Kiem tra xem co ai tung muon chua
-        for (Loan l : loans) {
-            if (l.getPublicationId().equals(id)) {
-                System.out.println("Tai lieu nay da co lich su muon, khong duoc xoa!");
-                return false;
+        for (Loan loan : this.loans) {
+            if (loan.getPublicationId().equals(id)) {
+                throw new IllegalStateException(
+                        "Cannot delete: publication " + id + " already has loans (including returned loans).");
             }
         }
-        publications.remove(id);
-        return true;
+        this.publications.remove(id);
     }
 
-    // ==================== QUAN LY DOC GIA (READER) ====================
-
-    public boolean addReader(Reader r) {
-        if (r == null || r.getId() == null || r.getId().isEmpty()) {
-            System.out.println("Thong tin doc gia khong hop le!");
-            return false;
+    public void addReader(Reader r) {
+        if (r == null) {
+            throw new IllegalArgumentException("Reader must not be null.");
         }
-        if (readers.containsKey(r.getId())) {
-            System.out.println("Ma doc gia da ton tai!");
-            return false;
+        if (this.readers.containsKey(r.getId())) {
+            throw new IllegalArgumentException("Reader ID already exists: " + r.getId());
         }
-        readers.put(r.getId(), r);
-        return true;
+        this.readers.put(r.getId(), r);
     }
 
     public Reader findReaderById(String id) {
-        if (id == null) return null;
-        return readers.get(id);
+        return this.readers.get(id);
     }
 
-    public boolean updateReader(String id, String newName, String newContact) {
-        Reader r = findReaderById(id);
+    public void updateReader(String id, String newName, String newContact) {
+        Reader r = this.findReaderById(id);
         if (r == null) {
-            System.out.println("Khong tim thay doc gia!");
-            return false;
+            throw new IllegalArgumentException("Reader not found: " + id);
         }
-        if (newName != null && !newName.isEmpty()) {
-            r.setFullName(newName);
+        if (newName == null || newName.trim().isEmpty()
+                || newContact == null || newContact.trim().isEmpty()) {
+            throw new IllegalArgumentException("Full name and contact must not be empty.");
         }
-        if (newContact != null && !newContact.isEmpty()) {
-            r.setContact(newContact);
-        }
-        return true;
+        r.setFullName(newName);
+        r.setContact(newContact);
     }
 
-    public boolean deleteReader(String id) {
-        Reader r = findReaderById(id);
-        if (r == null) {
-            System.out.println("Khong tim thay doc gia!");
-            return false;
+    public void deleteReader(String id) {
+        if (this.findReaderById(id) == null) {
+            throw new IllegalArgumentException("Reader not found: " + id);
         }
-        for (Loan l : loans) {
-            if (l.getReaderId().equals(id)) {
-                System.out.println("Doc gia nay da co lich su muon sach, khong duoc xoa!");
-                return false;
+        for (Loan loan : this.loans) {
+            if (loan.getReaderId().equals(id)) {
+                throw new IllegalStateException(
+                        "Cannot delete: reader " + id + " already has loans (including returned loans).");
             }
         }
-        readers.remove(id);
-        return true;
+        this.readers.remove(id);
     }
 
-    // ==================== NGHIEP VU MUON / TRA ====================
-
     public Loan borrow(String readerId, String publicationId, LocalDate borrowDate) {
-        Reader reader = findReaderById(readerId);
-        if (reader == null) {
-            System.out.println("Ma doc gia khong ton tai!");
-            return null;
+        if (borrowDate == null) {
+            throw new IllegalArgumentException("Invalid borrow date.");
         }
-        Publication pub = findPublicationById(publicationId);
-        if (pub == null) {
-            System.out.println("Ma tai lieu khong ton tai!");
-            return null;
+        if (this.findReaderById(readerId) == null) {
+            throw new IllegalArgumentException("Reader not found: " + readerId);
         }
-        if (!isAvailable(publicationId)) {
-            System.out.println("Tai lieu dang co nguoi muon!");
-            return null;
+        if (this.findPublicationById(publicationId) == null) {
+            throw new IllegalArgumentException("Publication not found: " + publicationId);
         }
-        if (countActiveLoansOf(readerId) >= 3) {
-            System.out.println("Doc gia da dat toi da 3 phieu muon!");
-            return null;
+        if (!this.isAvailable(publicationId)) {
+            throw new IllegalStateException("Publication " + publicationId + " is currently on loan.");
+        }
+        if (this.countActiveLoansOf(readerId) >= MAX_ACTIVE_LOANS) {
+            throw new IllegalStateException("Reader " + readerId + " has already borrowed "
+                    + MAX_ACTIVE_LOANS + " items.");
         }
 
-        // Tao ma phieu
-        String loanId = String.format("L%06d", nextLoanNumber++);
-        Loan newLoan = new Loan(loanId, readerId, publicationId, borrowDate);
-        loans.add(newLoan);
-        return newLoan;
+        String loanId = String.format("L%03d", this.nextLoanNumber);
+        this.nextLoanNumber++;
+        while (this.findLoanById(loanId) != null) {
+            loanId = String.format("L%03d", this.nextLoanNumber);
+            this.nextLoanNumber++;
+        }
+        Loan loan = new Loan(loanId, readerId, publicationId, borrowDate);
+        this.loans.add(loan);
+        return loan;
     }
 
     public long returnLoan(String loanId, LocalDate returnDate) {
-        Loan loan = findLoanById(loanId);
-        if (loan == null || !loan.isActive()) {
-            System.out.println("Phieu muon khong hop le hoac da tra roi!");
-            return -1;
+        if (returnDate == null) {
+            throw new IllegalArgumentException("Invalid return date.");
+        }
+        Loan loan = this.findLoanById(loanId);
+        if (loan == null) {
+            throw new IllegalArgumentException("Loan not found: " + loanId);
+        }
+        if (!loan.isActive()) {
+            throw new IllegalStateException("Loan " + loanId + " has already been returned.");
+        }
+        if (returnDate.isBefore(loan.getBorrowDate())) {
+            throw new IllegalArgumentException("Return date must not be before the borrow date.");
+        }
+        Publication p = this.findPublicationById(loan.getPublicationId());
+        if (p == null) {
+            throw new IllegalStateException("Publication of loan " + loanId + " not found.");
         }
 
-        long daysLate = java.time.temporal.ChronoUnit.DAYS.between(loan.getDueDate(), returnDate);
-        if (daysLate < 0) daysLate = 0;
+        long daysLate = Math.max(0, ChronoUnit.DAYS.between(loan.getDueDate(), returnDate));
+        long fee = daysLate * p.getFinePerDay();
 
-        Publication pub = findPublicationById(loan.getPublicationId());
-        long finePerDay = (pub != null) ? pub.getFinePerDay() : 0;
-        long finalFee = daysLate * finePerDay;
-
-        loan.markReturned(returnDate, finalFee);
-        return finalFee;
+        loan.markReturned(returnDate, fee);
+        return fee;
     }
 
     public Loan findLoanById(String loanId) {
-        if (loanId == null) return null;
-        for (Loan l : loans) {
-            if (l.getLoanId().equalsIgnoreCase(loanId)) {
-                return l;
+        for (Loan loan : this.loans) {
+            if (loan.getLoanId().equals(loanId)) {
+                return loan;
             }
         }
         return null;
     }
 
-    // ==================== TRA CUU VA THONG KE ====================
-
     public boolean isAvailable(String publicationId) {
-        for (Loan l : loans) {
-            if (l.getPublicationId().equals(publicationId) && l.isActive()) {
+        for (Loan loan : this.loans) {
+            if (loan.isActive() && loan.getPublicationId().equals(publicationId)) {
                 return false;
             }
         }
@@ -243,19 +224,42 @@ public class LibraryService {
 
     public int countActiveLoansOf(String readerId) {
         int count = 0;
-        for (Loan l : loans) {
-            if (l.getReaderId().equals(readerId) && l.isActive()) {
+        for (Loan loan : this.loans) {
+            if (loan.isActive() && loan.getReaderId().equals(readerId)) {
                 count++;
             }
         }
         return count;
     }
 
+    public List<Loan> getActiveLoansOfReader(String readerId) {
+        List<Loan> result = new ArrayList<Loan>();
+        for (Loan loan : this.loans) {
+            if (loan.isActive() && loan.getReaderId().equals(readerId)) {
+                result.add(loan);
+            }
+        }
+        return result;
+    }
+
+    public List<Publication> getAvailablePublications() {
+        List<Publication> result = new ArrayList<Publication>();
+        for (Publication p : this.publications.values()) {
+            if (this.isAvailable(p.getId())) {
+                result.add(p);
+            }
+        }
+        return result;
+    }
+
     public List<Loan> getOverdueLoans(LocalDate date) {
-        List<Loan> result = new ArrayList<>();
-        for (Loan l : loans) {
-            if (l.isOverdueAt(date)) {
-                result.add(l);
+        if (date == null) {
+            throw new IllegalArgumentException("Invalid lookup date.");
+        }
+        List<Loan> result = new ArrayList<Loan>();
+        for (Loan loan : this.loans) {
+            if (loan.isOverdueAt(date)) {
+                result.add(loan);
             }
         }
         return result;
@@ -263,11 +267,14 @@ public class LibraryService {
 
     public long getTotalFee() {
         long total = 0;
-        for (Loan l : loans) {
-            if (!l.isActive()) {
-                total += l.getFinalFee();
+        for (Loan loan : this.loans) {
+            if (!loan.isActive()) {
+                total += loan.getFinalFee();
             }
         }
         return total;
     }
 }
+
+
+
