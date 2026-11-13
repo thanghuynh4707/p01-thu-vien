@@ -56,9 +56,9 @@ public class Loan implements Serializable {
             }
         }
 
-        this.loanId = loanId;
-        this.readerId = readerId;
-        this.publicationId = publicationId;
+        this.loanId = loanId.trim();
+        this.readerId = readerId.trim();
+        this.publicationId = publicationId.trim();
         this.borrowDate = borrowDate;
         this.dueDate = dueDate;
         this.returnDate = returnDate;
